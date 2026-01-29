@@ -1,0 +1,58 @@
+---
+
+name: publish article
+
+on:
+  push:
+    branches:
+      - main
+    tags-ignore:
+      - '*'
+
+permissions:
+  pages: write
+  id-token: write
+
+env:
+  NOTEBOOK_FILE: discrete-simulation.ipynb
+
+jobs:
+
+  build:
+    name: build article
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: shallow checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: build with jupyter
+        run: |
+          docker run --rm \
+            -u root \
+            -v ${{ github.workspace }}:/workspace -w /workspace \
+            jupyter/datascience-notebook:x86_64-ubuntu-22.04 \
+            bash -c "mkdir -p public && jupyter nbconvert --to html --output-dir=public --output=index ${{ env.NOTEBOOK_FILE }}"
+
+      - name: verify build output
+        run: test -f public/index.html
+
+      - name: upload pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    name: deploy to pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: deploy to pages
+        id: deployment
+        uses: actions/deploy-pages@v4
